@@ -1,6 +1,8 @@
 interface Env {
   TARGET_HOSTNAME?: string;
   BASE64_HEADERS?: string; // Base64编码的JSON字符串格式
+  MODEL?: string; // 默认语言模型
+  SYSTEM_PROMPT?: string; // 默认系统提示词
 }
 
 interface GeoProperties {
@@ -44,7 +46,7 @@ export async function onRequest({ request, env }: { request: EORequest; env?: En
   // 处理 URL
   const url = new URL(request.url);
   // 从环境变量获取反代目标域名，如果未设置则使用默认值
-  const targetHostname = env?.TARGET_HOSTNAME || "cdn.jsdelivr.net";
+  const targetHostname = env?.TARGET_HOSTNAME || "api.openai.com";
   url.hostname = targetHostname;
 
   // 请求头处理,去除可能导致错误的 headers
@@ -66,7 +68,7 @@ export async function onRequest({ request, env }: { request: EORequest; env?: En
         headers.set(key, String(value));
       });
     } catch (e) {
-      console.error("Failed to decode/parse CUSTOM_HEADERS:", e);
+      console.error("Failed to decode/parse BASE64_HEADERS:", e);
     }
   }
   
@@ -74,11 +76,59 @@ export async function onRequest({ request, env }: { request: EORequest; env?: En
   const method = request.method.toUpperCase();
   const hasBody = !["GET", "HEAD"].includes(method);
 
+  // 处理请求体：如果是简化格式 {content:""}, 转换为 ChatGPT API 格式
+  let requestBody: BodyInit | null | undefined = hasBody ? request.body : undefined;
+  
+  if (hasBody && request.headers.get("content-type")?.includes("application/json")) {
+    try {
+      const bodyText = await request.text();
+      const clientBody = JSON.parse(bodyText);
+      
+      // 检测是否为简化格式 {content:""}
+      if (clientBody.content !== undefined && !clientBody.model) {
+        // 从环境变量获取默认模型和系统提示词
+        const defaultModel = env?.MODEL || "gpt-3.5-turbo";
+        const systemPrompt = env?.SYSTEM_PROMPT || "You are a helpful assistant.";
+        
+        // 构建符合 ChatGPT API 规范的完整请求体
+        const chatGPTBody = {
+          model: defaultModel,
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            {
+              role: "user",
+              content: clientBody.content
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+          top_p: 1,
+          frequency_penalty: 0,
+          presence_penalty: 0
+        };
+        
+        // 将转换后的请求体转为字符串
+        requestBody = JSON.stringify(chatGPTBody);
+        headers.set("content-type", "application/json");
+      } else {
+        // 如果已经是完整格式，直接使用原始请求体
+        requestBody = bodyText;
+      }
+    } catch (e) {
+      console.error("Failed to parse request body:", e);
+      // 解析失败时使用原始请求体
+      requestBody = request.body;
+    }
+  }
+
   // 生成回源请求
   const req = new Request(url.toString(), {
     method,
     headers,
-    body: hasBody ? request.body : undefined,
+    body: requestBody,
     redirect: "follow",
   });
 
