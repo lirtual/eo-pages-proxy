@@ -3,6 +3,7 @@ interface Env {
   BASE64_HEADERS?: string; // Base64编码的JSON字符串格式
   MODEL?: string; // 默认语言模型
   SYSTEM_PROMPT?: string; // 默认系统提示词
+  TARGET_PATH?: string; // 目标路径，如果设置则强制使用该路径，未设置则保持原始路径
 }
 
 interface GeoProperties {
@@ -48,6 +49,11 @@ export async function onRequest({ request, env }: { request: EORequest; env?: En
   // 从环境变量获取反代目标域名，如果未设置则使用默认值
   const targetHostname = env?.TARGET_HOSTNAME || "api.openai.com";
   url.hostname = targetHostname;
+  
+  // 如果设置了 TARGET_PATH 环境变量，则强制使用该路径；否则保持客户端的原始路径
+  if (env?.TARGET_PATH) {
+    url.pathname = env.TARGET_PATH;
+  }
 
   // 请求头处理,去除可能导致错误的 headers
   const headers = new Headers(request.headers);
