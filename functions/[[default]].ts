@@ -42,8 +42,17 @@ export async function onRequestOptions() {
   });
 }
 
+
+export async function onRequestGet({ request, env }: { request: EORequest; env?: Env }) {
+  return onRequest({ request, env });
+}
+
+export async function onRequestPost({ request, env }: { request: EORequest; env?: Env }) {
+  return onRequest({ request, env });
+}
+
 // 处理所有请求
-export async function onRequest({ request, env }: { request: EORequest; env?: Env }) {
+async function onRequest({ request, env }: { request: EORequest; env?: Env }) {
   // 处理 URL
   const url = new URL(request.url);
   // 从环境变量获取反代目标域名，如果未设置则使用默认值

@@ -1,3 +1,5 @@
-import { onRequestOptions, onRequest } from "./[[default]]";
+import { onRequestOptions, onRequestGet, onRequestPost } from "./[[default]]";
 
-export { onRequestOptions, onRequest };
+export { onRequestOptions, onRequestGet, onRequestPost };
+
+
